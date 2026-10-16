@@ -1,0 +1,33 @@
+# Perfil local: Postgres y LocalStack del docker-compose.
+# Cualquier valor se puede pisar con variables de entorno (p. ej. SPRING_DATASOURCE_URL).
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/facturacion
+    username: facturacion
+    password: facturacion
+  thymeleaf:
+    # Lee la plantilla del código fuente y sin caché: se edita factura.html y el próximo PDF ya sale con el cambio
+    prefix: file:src/main/resources/templates/
+    cache: false
+
+logging:
+  level:
+    ar.com.facturacion: DEBUG
+
+app:
+  bucket: facturacion-local
+  # Demo: las facturas vencen a los 10 minutos y la purga corre cada minuto
+  retention: PT10M
+  purge-interval: PT1M
+  cors:
+    allowed-origins:
+      - http://localhost:3000
+      - http://localhost:5173
+      - http://localhost:4200
+  s3:
+    region: us-east-1
+    endpoint: http://localhost:4566
+    path-style: true
+    # LocalStack acepta cualquier credencial; en prod esto NO se define y se usa la cadena por defecto del SDK
+    access-key: test
+    secret-key: test

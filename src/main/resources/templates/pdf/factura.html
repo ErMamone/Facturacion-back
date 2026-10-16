@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  PLANTILLA DEL PDF DE FACTURA  (placeholder: el diseño final está pendiente)
+  ============================================================================
+  Este archivo define TODO el diseño del PDF. Se puede reescribir entero sin
+  tocar Java mientras se respete el contrato de variables de abajo.
+
+  Motor: Thymeleaf (th:text, th:each, ...) -> HTML -> OpenHTMLtoPDF.
+  Limitación: CSS 2.1 + algunas extensiones. NO hay flexbox ni grid: el layout
+  se arma con tablas. @page sí está soportado (tamaño de hoja, márgenes).
+
+  Imágenes/logos: dejarlas en esta misma carpeta (templates/pdf/) y referenciarlas
+  en forma relativa, p. ej. <img src="logo.png" />.
+
+  Probar cambios en local: con el perfil "local" la plantilla se lee del código
+  fuente sin caché, así que alcanza con guardar y volver a crear una factura.
+
+  CONTRATO DE VARIABLES  (Java: infrastructure/pdf/FacturaPdfVista)
+  ---------------------
+  factura      .id, .moneda, .total, .emitidaEl, .venceEl, .vendedor, .comprador, .items
+  vendedor     .cuit (11 dígitos), .cuitFormateado (20-12345678-6), .nombre
+  comprador    .cuit, .cuitFormateado, .nombre
+  items        lista; cada ítem: .nombre, .cantidad (entero), .precio,
+               .subtotal (cantidad × precio)
+  total        número con 2 decimales (Σ cantidad × precio)
+  moneda       "ARS" | "USD"
+  emitidaEl    fecha/hora de emisión, en hora de Argentina
+  venceEl      fecha/hora hasta la que se puede descargar, en hora de Argentina
+
+  Helpers útiles de Thymeleaf:
+    ${#numbers.formatDecimal(total, 1, 'POINT', 2, 'COMMA')}  -> 1.234,56
+    ${#temporals.format(emitidaEl, 'dd/MM/yyyy HH:mm')}       -> 15/10/2026 16:47
+  ============================================================================
+-->
+<html xmlns:th="http://www.thymeleaf.org" lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <title th:text="'Factura ' + ${factura.id}">Factura</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 18mm 15mm 20mm 15mm;
+            @bottom-center {
+                content: "Página " counter(page) " de " counter(pages);
+                font-family: Helvetica, sans-serif;
+                font-size: 8pt;
+                color: #888888;
+            }
+        }
+        body { font-family: Helvetica, sans-serif; font-size: 10pt; color: #222222; }
+        h1 { font-size: 20pt; margin: 0; color: #1f3a5f; }
+        .muted { color: #777777; font-size: 8.5pt; }
+        table { width: 100%; border-collapse: collapse; }
+        .encabezado td { vertical-align: top; }
+        .partes { margin-top: 14pt; }
+        .partes td { width: 50%; vertical-align: top; padding: 8pt; border: 1px solid #d0d7e2; }
+        .partes .rotulo { font-size: 8pt; text-transform: uppercase; color: #1f3a5f; font-weight: bold; }
+        .items { margin-top: 16pt; }
+        .items th { background-color: #1f3a5f; color: #ffffff; font-size: 9pt; padding: 5pt 6pt; text-align: left; }
+        .items td { padding: 5pt 6pt; border-bottom: 1px solid #e3e7ee; }
+        .items tr:nth-child(even) td { background-color: #f6f8fb; }
+        .num, .items th.num { text-align: right; }
+        .total { margin-top: 10pt; }
+        .total td { padding: 6pt; font-size: 12pt; }
+        .total .monto { font-weight: bold; font-size: 14pt; text-align: right; border-top: 2px solid #1f3a5f; }
+        .pie { margin-top: 24pt; }
+    </style>
+</head>
+<body>
+
+<table class="encabezado">
+    <tr>
+        <td>
+            <!-- Logo: <img src="logo.png" style="height: 40pt;" /> -->
+            <h1>FACTURA</h1>
+            <div class="muted" th:text="'N.º ' + ${factura.id}">N.º 00000000-0000-0000-0000-000000000000</div>
+        </td>
+        <td class="num">
+            <div><strong>Emitida:</strong> <span th:text="${#temporals.format(emitidaEl, 'dd/MM/yyyy HH:mm')}">01/01/2026 10:00</span></div>
+            <div><strong>Moneda:</strong> <span th:text="${moneda}">ARS</span></div>
+        </td>
+    </tr>
+</table>
+
+<table class="partes">
+    <tr>
+        <td>
+            <div class="rotulo">Vendedor</div>
+            <div><strong th:text="${vendedor.nombre}">Empresa vendedora S.A.</strong></div>
+            <div th:text="'CUIT ' + ${vendedor.cuitFormateado}">CUIT 20-12345678-6</div>
+        </td>
+        <td>
+            <div class="rotulo">Comprador</div>
+            <div><strong th:text="${comprador.nombre}">Empresa compradora S.R.L.</strong></div>
+            <div th:text="'CUIT ' + ${comprador.cuitFormateado}">CUIT 30-71234567-1</div>
+        </td>
+    </tr>
+</table>
+
+<table class="items">
+    <thead>
+    <tr>
+        <th>Descripción</th>
+        <th class="num">Cantidad</th>
+        <th class="num">Precio unitario</th>
+        <th class="num">Subtotal</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="item : ${items}">
+        <td th:text="${item.nombre}">Producto de ejemplo</td>
+        <td class="num" th:text="${item.cantidad}">1</td>
+        <td class="num" th:text="${#numbers.formatDecimal(item.precio, 1, 'POINT', 2, 'COMMA')}">100,00</td>
+        <td class="num" th:text="${#numbers.formatDecimal(item.subtotal, 1, 'POINT', 2, 'COMMA')}">100,00</td>
+    </tr>
+    </tbody>
+</table>
+
+<table class="total">
+    <tr>
+        <td style="width: 60%;"></td>
+        <td>Total</td>
+        <td class="monto" th:text="${moneda} + ' ' + ${#numbers.formatDecimal(total, 1, 'POINT', 2, 'COMMA')}">ARS 100,00</td>
+    </tr>
+</table>
+
+<div class="pie muted">
+    Documento disponible para descarga hasta el
+    <span th:text="${#temporals.format(venceEl, 'dd/MM/yyyy HH:mm')}">31/01/2026 10:00</span>.
+</div>
+
+</body>
+</html>

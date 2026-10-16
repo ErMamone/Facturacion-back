@@ -1,0 +1,60 @@
+# Configuración común a todos los perfiles.
+# Perfiles: "local" (por defecto si no se indica ninguno) y "prod" (SPRING_PROFILES_ACTIVE=prod).
+spring:
+  application:
+    name: facturacion-back
+  profiles:
+    default: local
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  jackson:
+    deserialization:
+      # "cantidad": 1.5 tiene que ser un error, no truncarse a 1
+      accept-float-as-int: false
+  mvc:
+    problemdetails:
+      enabled: true
+  web:
+    # Mensajes de validación en castellano sin depender del Accept-Language del cliente ni del locale del SO
+    locale: es_AR
+    locale-resolver: fixed
+  thymeleaf:
+    prefix: classpath:/templates/
+    check-template-location: false
+
+server:
+  port: 8080
+  shutdown: graceful
+
+logging:
+  level:
+    com.openhtmltopdf: WARN
+    # PDFBox avisa en cada PDF que usa una fuente de reemplazo para las 14 estándar: es esperado
+    org.apache.pdfbox.pdmodel.font: ERROR
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+app:
+  retention: P30D
+  purge-interval: PT1H
+  purge-batch-size: 100
+  presign-duration: PT5M
+  zona-horaria: America/Argentina/Buenos_Aires
