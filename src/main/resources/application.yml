@@ -11,6 +11,7 @@ spring:
       ddl-auto: validate
   flyway:
     enabled: true
+    validate-migration-naming: true
   jackson:
     deserialization:
       # "cantidad": 1.5 tiene que ser un error, no truncarse a 1
