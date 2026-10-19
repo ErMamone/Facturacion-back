@@ -32,6 +32,9 @@ jobs:
     needs: test
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    # El rol de AWS solo confía en jobs del environment `demo` (pide aprobación).
+    # Variables AWS_ROLE_ARN, AWS_REGION y ECR_REPOSITORY: definidas en el environment.
+    environment: demo
     permissions:
       contents: read
       id-token: write   # OIDC hacia AWS: sin access keys guardadas en GitHub
@@ -41,18 +44,18 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: aws-actions/configure-aws-credentials@v6
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
       - id: ecr
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
 
-      - uses: docker/setup-buildx-action@v4
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Build
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           load: true
@@ -62,7 +65,7 @@ jobs:
 
       # Revisa CVEs de la imagen (SO + jars, incluido openhtmltopdf/PDFBox). Corta el pipeline si hay CRITICAL/HIGH con fix.
       - name: Trivy
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
           severity: CRITICAL,HIGH
