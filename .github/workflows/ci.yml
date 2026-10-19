@@ -76,3 +76,6 @@ jobs:
           docker tag $IMAGE:${{ github.sha }} $IMAGE:latest
           docker push $IMAGE:${{ github.sha }}
           docker push $IMAGE:latest
+          VERSION=$(python3 -c "import xml.etree.ElementTree as E; print(E.parse('pom.xml').getroot().find('{http://maven.apache.org/POM/4.0.0}version').text)")
+          docker tag $IMAGE:${{ github.sha }} $IMAGE:$VERSION
+          docker push $IMAGE:$VERSION

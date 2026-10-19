@@ -12,7 +12,7 @@
 
     <groupId>ar.com.facturacion</groupId>
     <artifactId>facturacion-back</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.0.6</version>
     <name>facturacion-back</name>
     <description>Backend de facturación: alta de facturas, PDF en S3 y purga por TTL</description>
 
