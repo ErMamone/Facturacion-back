@@ -1,0 +1,34 @@
+# Perfil prod (AWS). Todo sale de variables de entorno; las que no tienen default son obligatorias
+# y la app no arranca si faltan.
+#
+#   SPRING_DATASOURCE_URL       jdbc:postgresql://<host-rds>:5432/facturacion
+#   SPRING_DATASOURCE_USERNAME
+#   SPRING_DATASOURCE_PASSWORD
+#   APP_BUCKET                  bucket S3 de los PDFs
+#   AWS_REGION                  región (la lee el SDK; en EKS/ECS normalmente ya viene seteada)
+#   APP_RETENTION               opcional, default P30D
+#   APP_CORS_ALLOWED_ORIGINS    opcional, orígenes del frontend separados por coma
+#
+# Credenciales AWS: cadena por defecto del SDK (IRSA en EKS, task role en ECS, instance profile en EC2).
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+
+server:
+  # Detrás de un ALB / ingress: respeta X-Forwarded-* para armar bien el header Location
+  forward-headers-strategy: framework
+
+logging:
+  structured:
+    format:
+      console: ecs
+
+app:
+  bucket: ${APP_BUCKET}
+  retention: ${APP_RETENTION:P30D}
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:}

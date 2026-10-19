@@ -1,0 +1,116 @@
+# Despliegue en EKS. Reemplazar los <...> antes de aplicar:
+#   kubectl apply -f deploy/k8s/facturacion-back.yaml
+#
+# Requisitos previos (fuera de este repo, idealmente con Terraform):
+#   - Bucket S3 privado para los PDFs (Block Public Access ON; lifecycle opcional como red de seguridad)
+#   - RDS PostgreSQL accesible desde el cluster
+#   - Rol IAM para IRSA con s3:PutObject / s3:GetObject / s3:DeleteObject sobre arn:aws:s3:::<bucket>/facturas/*
+#   - Secret "facturacion-db" con las credenciales de la base (o External Secrets desde Secrets Manager)
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: facturacion-back
+  annotations:
+    # IRSA: el SDK de AWS toma credenciales temporales de este rol, sin access keys
+    eks.amazonaws.com/role-arn: arn:aws:iam::<account-id>:role/<rol-facturacion-back>
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: facturacion-back
+data:
+  SPRING_PROFILES_ACTIVE: prod
+  SPRING_DATASOURCE_URL: jdbc:postgresql://<endpoint-rds>:5432/facturacion
+  APP_BUCKET: <bucket-pdfs>
+  AWS_REGION: <region>
+  APP_RETENTION: P30D
+  APP_CORS_ALLOWED_ORIGINS: https://<dominio-frontend>
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: facturacion-back
+spec:
+  # 1 réplica: el job de purga no tiene lock distribuido todavía (mejora: ShedLock)
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: facturacion-back
+  template:
+    metadata:
+      labels:
+        app: facturacion-back
+    spec:
+      serviceAccountName: facturacion-back
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+      containers:
+        - name: app
+          image: <account-id>.dkr.ecr.<region>.amazonaws.com/facturacion-back:<tag>
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: facturacion-back
+          env:
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: facturacion-db
+                  key: username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: facturacion-db
+                  key: password
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 768Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 5
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: facturacion-back
+spec:
+  selector:
+    app: facturacion-back
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

@@ -1,0 +1,70 @@
+# Entorno local.
+#
+#   docker compose up -d db localstack   -> solo infraestructura; la app se corre desde el IDE (perfil local)
+#   docker compose up -d --build         -> todo, incluida la app en http://localhost:8080
+#
+# Con el servicio "app" la plantilla del PDF se monta desde ./src/main/resources/templates:
+# se edita factura.html y la próxima factura ya sale con el cambio, sin rebuild.
+name: facturacion
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: facturacion
+      POSTGRES_USER: facturacion
+      POSTGRES_PASSWORD: facturacion
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U facturacion -d facturacion"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  localstack:
+    # 4.14 es la última versión que no exige LOCALSTACK_AUTH_TOKEN
+    image: localstack/localstack:4.14
+    environment:
+      SERVICES: s3
+      APP_BUCKET: facturacion-local
+    ports:
+      - "4566:4566"
+    volumes:
+      - ./docker/localstack/crear-bucket.sh:/etc/localstack/init/ready.d/crear-bucket.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "awslocal s3api head-bucket --bucket facturacion-local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/facturacion
+      SPRING_THYMELEAF_PREFIX: file:/app/plantillas/
+      APP_S3_ENDPOINT: http://localstack:4566
+      # El navegador sigue el 302 a la URL firmada: tiene que apuntar a un host que vea él, no al interno
+      APP_S3_PUBLIC_ENDPOINT: http://localhost:4566
+    volumes:
+      - ./src/main/resources/templates:/app/plantillas:ro
+    ports:
+      - "8080:8080"
+    healthcheck:
+      # La imagen no trae curl/wget: se usa /dev/tcp de bash
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/8080 && printf 'GET /actuator/health/readiness HTTP/1.0\r\n\r\n' >&3 && grep -q UP <&3"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+
+volumes:
+  db-data:
